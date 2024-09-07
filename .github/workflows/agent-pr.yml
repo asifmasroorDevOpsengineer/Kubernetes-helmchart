@@ -1,0 +1,46 @@
+---
+name: Agent Version PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      agent_version:
+        name: Agent Version
+        required: true
+
+jobs:
+  agent-pr:
+    name: Generate Agent Version Bump PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare Environment
+        run: pip3 install ruamel-yaml semver
+      - name: Configure Git
+        run: |
+          git config --global user.name Netdatabot
+          git config --global user.email bot@netdata.cloud
+      - name: Create Branch
+        run: |
+          git checkout -b agent-${{ github.event.inputs.agent_version }}
+          git push -u origin agent-${{ github.event.inputs.agent_version }}
+      - name: Update Files
+        run: .github/scripts/update_versions.py set_app_version --version ${{ github.event.inputs.agent_version }}
+      - name: Commit Changes
+        uses: swinton/commit@v2.x
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            charts/netdata/Chart.yaml
+            charts/netdata/README.md
+          commit-message: 'Update agent version to ${{ github.event.inputs.agent_version }}.'
+          ref: refs/heads/agent-${{ github.event.inputs.agent_version }}
+      - name: Create PR
+        uses: repo-sync/pull-request@v2.12.1
+        with:
+          source_branch: agent-${{ github.event.inputs.agent_version }}
+          pr_title: 'Update agent version to ${{ github.event.inputs.agent_version }}'
+          pr_body: 'See https://github.com/netdata/netdata/releases/tag/${{ github.event.inputs.agent_version }} for release notes.'
+          github_token: ${{ secrets.GITHUB_TOKEN }}
